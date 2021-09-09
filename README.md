@@ -1,68 +1,143 @@
+# Engineering Project - Backend Api - Rory Olsen
+
+
+## Dependencies
+
+This app primarily uses Flask and Flask-SQLAlchemy with a sqlite database at `/tmp/test.db`. You can install everything that's needed using a virtual environment like pyenv, then running:
+
+```
+pip install -r requirements.txt
+```
+
+## Database Setup
+
+To get started, set up the test database:
+
+```
+python setup_test_db.py
+```
+
+Make sure the current process has write permissions on `/tmp/test.db`, or set a different path (see messenger.py).
+
+## Run the App
+
+First, set the following environment variables:
+
+```
+export FLASK_APP=messenger
+export FLASK_ENV=development
+```
+
+Then run the app:
+
+```
+python messenger.py
+```
+
+Or, together:
+
+```
+(export FLASK_APP=messenger && export FLASK_ENV=development && python messenger.py)
+```
+
 ## Database Schema
 
-Users Table
-id: primary key integer
-# Not implemented: name: char
-# Not implemented: password
+```
+Users
+    id: primary key integer
 
-Contacts Table (Not implemented)
-
-Message Table
-id: primary key integer
-sender_id: integer
-recipient_id: integer
-datetime: DATETIME index
-    # Stored in UTC
-text: unicode max length 256
-    # unicode seems best because this app is worldwide, and therefore likely multi-language.
-
-
-
-### A note on sharding
-
-Because this is a worldwide app, it could end up requiring database sharding given enough scale. Shards of the Message table could be made according to a location of where the recipient is located. That would be nice for the sake of geographically locating messages close to where they'll likely be accessed most, which allows for better caching and lower latency. (It seems like a safe assumption the recipient will read their messages multiple times and that the recipient is usually located in the same geographical region.) This sharding would not be effective when the recipient is not specified in the GET request.
-
+Message
+    id: primary key integer
+    sender_id: integer
+    recipient_id: integer
+    datetime: DATETIME
+     - Stored in UTC
+     - Likely candidate for index
+    text: unicode max length 256
+     - Unicode seems best because this app is worldwide, and therefore likely multi-language.
+```
 
 
 ## AJAX endpoints
 
-GET /users.json
-    Not implemented, but this would return user names given ids and vice versa.
+Hello web team!
 
-GET/POST/PUT/DELETE /contacts.json
-    Not implemented, but this would get or alter the contacts of a particular user.
+Currently the only things that are implemented are getting and posting messages. All endpoints use JSON, so it's expected to use AJAX.
 
-POST /messages.json
-    enctype=text/plain, as json
-        {
+Note that the message `datetime` is UTC and the message `text` is in Unicode. See examples below.
+
+### Post messages
+
+`POST /messages.json`
+enctype=text/json
+
+```
+{
+    "sender-id": 123,
+    "recipient-id": 456,
+    "text": "¡This is a Unicode message with 256 characters or less in it!",
+    "datetime": "2021-09-08 23:59:59"
+}
+```
+
+Returns the new message, including the id:
+
+```
+{
+    "id": 3,
+    "sender-id": 123,
+    "recipient-id": 456,
+    "datetime": "2021-09-08T23:59:59",
+    "text": "¡This is a Unicode message with 256 characters or less in it!"
+}
+```
+
+### Get messages
+
+There's a couple of ways to get a list of messages.
+
+Get the most recent messages for given sender and recipient ids, limited by either count or by number of days:
+
+`GET /messages.json?recipient-id=456&sender-id=123&count-limit=100`
+`GET /messages.json?recipient-id=456&sender-id=123&day-limit=30`
+
+Get the most recent messages, limited by either count or by number of days:
+
+`GET /messages.json?count-limit=100`
+`GET /messages.json?day-limit=30`
+
+Example return data:
+
+```
+{
+    "count": 100,
+    "messages": [
+        1000: {
+            "id": 1001,
             "sender-id": 123,
-            "receiver-id": 456,
-            "text": "This is a Unicode message with 256 characters or less in it.",
+            "recipient-id": 456,
+            "text": "¡This is a Unicode message with 256 characters or less in it!",
             "datetime": "2021-09-08 23:59:59"
-        }
-
-GET /messages.json?recipient=456&sender=123&count-limit=100
-GET /messages.json?recipient=456&sender=123&day-limit=30
-GET /messages.json?count-limit=100
-GET /messages.json?day-limit=30
-    Example return data:
-        {
-            "count": 100,
-            "messages": [
-                1000: {
-                    "sender-id": 123,
-                    "receiver-id": 456,
-                    "text": "This is a Unicode message with 256 characters or less in it.",
-                    "datetime": "2021-09-08 23:59:59"
-                },
-                ...
-            ],
-        }
-
-    To [bypass the cache](https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest/Using_XMLHttpRequest#bypassing_the_cache), a timestamp may be added to the URL.
+        },
+        ...99 more messages, because the "count" is 100
+    ],
+}
+```
 
 
-## Pagination (not implemented)
+### Bypassing the cache
 
-Getting all messages from the last 30 days is likely to be too many records to reasonably display at once (and even 100 messages is too much to fit on a mobile screen). Pagination is the solution. I would probably want to do this such that new messages didn't mess up the order of later pages. If there's 20 messages on page 1, ending in message ids 102, 101, and 100 as the oldest, then loading page 1 should start with 99, 98, etc. We can't exactly paginate based on the message count only because then a new message would cause message 100 to show up on page 2. Instead, we would pass message id 100 as the last message we saw, and page 2 would consist of a count of 20 (or less) messages after message 100.
+To [bypass the cache](https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest/Using_XMLHttpRequest#bypassing_the_cache)when getting messages, a timestamp may be added to the URL.
+
+
+## Testing
+
+I didn't get around to breaking up the application properly into a `controllers/messages.py` and a `models/` dir for the models.
+
+To test the POST route, I would use [pymox](https://pymox.readthedocs.io/en/latest/) to add testing by injecting a fake db session, then make sure the correct model was added via a `session.add(...)` and that `session.commit()` was called.
+
+Further, adding a layer of indirection between the routes and the return values would allow testing. I added a `post_message()` helper function like this.
+
+See TESTING.md for some example tests. (I would convert them into automated tests if I had time.)
+
 
