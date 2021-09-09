@@ -69,7 +69,7 @@ Note that the message `datetime` is UTC and the message `text` is in Unicode. Se
 ### Post messages
 
 `POST /messages.json`
-enctype=text/json
+Uses enctype=text/json for the parameters/data:
 
 ```
 {
@@ -80,7 +80,7 @@ enctype=text/json
 }
 ```
 
-Returns the new message, including the id:
+This returns the new message, including the newly-created id:
 
 ```
 {
@@ -99,11 +99,13 @@ There's a couple of ways to get a list of messages.
 Get the most recent messages for given sender and recipient ids, limited by either count or by number of days:
 
 `GET /messages.json?recipient-id=456&sender-id=123&count-limit=100`
+
 `GET /messages.json?recipient-id=456&sender-id=123&day-limit=30`
 
 Get the most recent messages, limited by either count or by number of days:
 
 `GET /messages.json?count-limit=100`
+
 `GET /messages.json?day-limit=30`
 
 Example return data:
@@ -127,7 +129,7 @@ Example return data:
 
 ### Bypassing the cache
 
-To [bypass the cache](https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest/Using_XMLHttpRequest#bypassing_the_cache)when getting messages, a timestamp may be added to the URL.
+To [bypass the cache](https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest/Using_XMLHttpRequest#bypassing_the_cache) when getting messages, a timestamp may be added to the URL.
 
 
 ## Testing
