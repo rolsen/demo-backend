@@ -3,7 +3,26 @@ import json
 import os
 
 import flask
-from flask_sqlalchemy import SQLAlchemy
+
+from .db import init_db, db_session
+from .models import User, Message
+
+
+
+# Helper functions / testing hooks
+
+def post_message(session, data):
+    # TODO: Resolve users via User.query to ensure they exist.
+
+    message = Message(
+        sender_id=data['sender-id'],
+        recipient_id=data['recipient-id'],
+        datetime=datetime.datetime.fromisoformat(data['datetime']),
+        text=data['text'],
+    )
+    session.add(message)
+    session.commit()
+    return message.to_dict()
 
 
 def create_app(test_config=None):
@@ -13,9 +32,9 @@ def create_app(test_config=None):
         SECRET_KEY='dev',
         DATABASE=os.path.join(app.instance_path, 'guilded_messenger.sqlite'),
     )
+    # TODO: Clean up
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////tmp/test.db'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    db = SQLAlchemy(app)
 
 
     if test_config is None:
@@ -31,53 +50,22 @@ def create_app(test_config=None):
     except OSError:
         pass
 
-
-    # Models
-
-    class User(db.Model):
-        id = db.Column(db.Integer(), primary_key=True)
-
-    class Message(db.Model):
-        id = db.Column(db.Integer, primary_key=True)
-        sender_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-        recipient_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-        datetime = db.Column(db.DateTime())
-        text = db.Column(db.Unicode(256))
-
-        def to_dict(self):
-            return {
-                'id': self.id,
-                'sender-id': self.sender_id,
-                'recipient-id': self.recipient_id,
-                'datetime': self.datetime.isoformat(),
-                'text': self.text,
-            }
-
-
-    # Setup db
-
+    init_db()
     try:
         # Force an exception if the db isn't initialized
         User.query.filter_by().first()
     except Exception as e:
-        print('[ERR] Database not initialized, please run `setup_test_db.py`.')
+        print('[WARN] Database has no data, adding test data...')
+        add_test_data()
 
 
-    # Helper functions / testing hooks
-
-
-    def post_message(data):
-        # TODO: Resolve users via User.query to ensure they exist.
-
-        message = Message(
-            sender_id=data['sender-id'],
-            recipient_id=data['recipient-id'],
-            datetime=datetime.datetime.fromisoformat(data['datetime']),
-            text=data['text'],
-        )
-        db.session.add(message)
-        db.session.commit()
-        return message.to_dict()
+    @app.teardown_appcontext
+    def shutdown_session(exception=None):
+        ########################################################################
+        # Not happening
+        ########################################################################
+        print('shutdown_session')
+        db_session.remove()
 
 
     # API
@@ -88,7 +76,7 @@ def create_app(test_config=None):
             # KeyError raised by access method of flask.request.form will render a
             # 400 BAD REQUEST
             data = flask.request.json
-            return json.dumps(post_message(data))
+            return json.dumps(post_message(db_session, data))
         else:
             params = flask.request.args
             result = {
